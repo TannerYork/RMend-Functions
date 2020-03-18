@@ -26,6 +26,7 @@ exports.saveNewUserData = functions.auth.user().onCreate(async data => {
               email: user.email,
               authCode: '',
               admin: false,
+              phoneNumber: '',
               id: user.uid
             });
         });
