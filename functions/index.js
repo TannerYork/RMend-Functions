@@ -70,3 +70,28 @@ exports.makeUserAdmin = functions.https.onCall((data, context) => {
       return { error: err.message, stack: err.stack };
     });
 });
+
+exports.updateUserAuthCode = functions.https.onCall((data, context) => {
+  admin
+    .auth()
+    .getUser(context.auth.uid)
+    .then(user => {
+      return admin
+        .auth()
+        .setCustomUserClaims(user.uid, { authCode: data.authCode })
+        .then(() => {
+          return admin
+            .firestore()
+            .collection('users')
+            .doc(user.uid)
+            .update({ authCode: data.authCode })
+            .then(() => {
+              return { result: `Your authority code has been updated.` };
+            });
+        });
+    })
+    .catch(err => {
+      console.log(err.message, err.stack);
+      return { error: err.message, stack: err.stack };
+    });
+});
