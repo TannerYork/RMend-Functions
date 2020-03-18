@@ -1,7 +1,7 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const serviceAccount = require('./keys/rmend-789c8-firebase-adminsdk-hmfrb-042a92ca23.json');
-// const nodemailer = require('nodemailer');
+//const nodemailer = require('nodemailer');
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -38,7 +38,7 @@ exports.saveNewUserData = functions.auth.user().onCreate(async data => {
 });
 
 exports.makeUserAdmin = functions.https.onCall((data, context) => {
-  if (context.auth.token.admin == '') {
+  if (context.auth.token.admin === '') {
     return {
       error: 'Request not authorized. You do not have the right access to fulfill this request.'
     };
@@ -74,13 +74,14 @@ exports.makeUserAdmin = functions.https.onCall((data, context) => {
 });
 
 exports.updateUserAuthCode = functions.https.onCall((data, context) => {
+  const adminToken = context.auth.token.admin || '';
   admin
     .auth()
     .getUser(context.auth.uid)
     .then(user => {
       return admin
         .auth()
-        .setCustomUserClaims(user.uid, { authCode: data.authCode })
+        .setCustomUserClaims(user.uid, { authCode: data.authCode, admin: adminToken })
         .then(() => {
           return admin
             .firestore()
@@ -88,7 +89,7 @@ exports.updateUserAuthCode = functions.https.onCall((data, context) => {
             .doc(user.uid)
             .update({ authCode: data.authCode })
             .then(() => {
-              return { result: `Your authority code has been updated.` };
+              return { result: 'Successfully updated authority code' };
             });
         });
     })
@@ -98,62 +99,62 @@ exports.updateUserAuthCode = functions.https.onCall((data, context) => {
     });
 });
 
-let transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: 'barrencountyroaddepartment@gmail.com',
-    pass: functions.config().email.key
-  }
-});
+// let transporter = nodemailer.createTransport({
+//   service: 'gmail',
+//   auth: {
+//     user: 'barrencountyroaddepartment@gmail.com',
+//     pass: functions.config().email.key
+//   }
+// });
 
-exports.sendReportReviewEmail = functions.https.onCall(async (data, context) => {
-  if (context.auth.token.moderator !== true)
-    return { error: 'ERROR! You need to be a moderator to send emails' };
+// exports.sendReportReviewEmail = functions.https.onCall(async (data, context) => {
+//   if (context.auth.token.moderator !== true)
+//     return { error: 'ERROR! You need to be a moderator to send emails' };
 
-  const { displayName, magisterialDistrict } = data;
-  return admin
-    .firestore()
-    .collection('users')
-    .where('magisterialDistrict', '==', magisterialDistrict)
-    .get()
-    .then(async districtUsers => {
-      return districtUsers
-        .forEach(user => {
-          const { email } = user.data();
-          const mailOptions = {
-            from: `Barren County Road Department: ${displayName}`, // Something like: Jane Doe <janedoe@gmail.com>
-            to: email,
-            subject: 'Report Under Review', // email subject
-            html: `<p style="font-size: 16px;">A report in your dirstict is under review.</p>` // email content in HTML
-          };
-          transporter.sendMail(mailOptions, (err, info) => {
-            if (err) console.log(err);
-          });
-        })
-        .then(() => {
-          return admin
-            .firestore()
-            .collection('users')
-            .where('magisterialDistrict', '==', 'manager')
-            .get()
-            .then(managers => {
-              return managers.forEach(manager => {
-                const { email } = manager.data();
-                const mailOptions = {
-                  from: `Barren County Road Department: ${displayName}`, // Something like: Jane Doe <janedoe@gmail.com>
-                  to: email,
-                  subject: 'Report Under Review', // email subject
-                  html: `<p style="font-size: 16px;">${message}</p>` // email content in HTML
-                };
-                transporter.sendMail(mailOptions, (err, info) => {
-                  if (err) console.log(err);
-                });
-                return { result: 'Emails sent to district managers' };
-              });
-            });
-        });
-    })
-    .catch(err => {
-      return { error: err.message, stack: err.stack };
-    });
-});
+//   const { displayName, magisterialDistrict } = data;
+//   return admin
+//     .firestore()
+//     .collection('users')
+//     .where('magisterialDistrict', '==', magisterialDistrict)
+//     .get()
+//     .then(async districtUsers => {
+//       return districtUsers
+//         .forEach(user => {
+//           const { email } = user.data();
+//           const mailOptions = {
+//             from: `Barren County Road Department: ${displayName}`, // Something like: Jane Doe <janedoe@gmail.com>
+//             to: email,
+//             subject: 'Report Under Review', // email subject
+//             html: `<p style="font-size: 16px;">A report in your dirstict is under review.</p>` // email content in HTML
+//           };
+//           transporter.sendMail(mailOptions, (err, info) => {
+//             if (err) console.log(err);
+//           });
+//         })
+//         .then(() => {
+//           return admin
+//             .firestore()
+//             .collection('users')
+//             .where('magisterialDistrict', '==', 'manager')
+//             .get()
+//             .then(managers => {
+//               return managers.forEach(manager => {
+//                 const { email } = manager.data();
+//                 const mailOptions = {
+//                   from: `Barren County Road Department: ${displayName}`, // Something like: Jane Doe <janedoe@gmail.com>
+//                   to: email,
+//                   subject: 'Report Under Review', // email subject
+//                   html: `<p style="font-size: 16px;">${message}</p>` // email content in HTML
+//                 };
+//                 transporter.sendMail(mailOptions, (err, info) => {
+//                   if (err) console.log(err);
+//                 });
+//                 return { result: 'Emails sent to district managers' };
+//               });
+//             });
+//         });
+//     })
+//     .catch(err => {
+//       return { error: err.message, stack: err.stack };
+//     });
+// });
