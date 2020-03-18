@@ -34,3 +34,39 @@ exports.saveNewUserData = functions.auth.user().onCreate(async data => {
       return { error: err.message, stack: err.stack };
     });
 });
+
+exports.makeUserAdmin = functions.https.onCall((data, context) => {
+  if (!context.auth.token.admin) {
+    return {
+      error: 'Request not authorized. You do not have the right access to fulfill this request.'
+    };
+  }
+
+  admin
+    .auth()
+    .getUser(data.userId)
+    .then(user => {
+      if (user.customClaims && user.customClaims.admin !== '') {
+        return {
+          error: `Request not authorized. ${user.displayName} is already an admin for this or another county. If ${user.displayName} was a part of another county before this adn you wish to add them to yours, make sure they remove their old admin status before adding a new one.`
+        };
+      }
+      return admin
+        .auth()
+        .setCustomUserClaims(user.uid, { admin: context.auth.token.admin })
+        .then(() => {
+          return admin
+            .firestore()
+            .collection('users')
+            .doc(user.uid)
+            .update({ admin: true })
+            .then(() => {
+              return { result: `${user.displayName} was added as an admin for your county` };
+            });
+        });
+    })
+    .catch(err => {
+      console.log(err.message, err.stack);
+      return { error: err.message, stack: err.stack };
+    });
+});
