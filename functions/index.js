@@ -5,33 +5,53 @@ const serviceAccount = require('./keys/rmend-789c8-firebase-adminsdk-hmfrb-042a9
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
-  databaseURL: 'https://rmend-789c8.firebaseio.com'
+  databaseURL: 'https://rmend-789c8.firebaseio.com',
 });
 
-exports.saveNewUserData = functions.auth.user().onCreate(async data => {
+exports.createNewUser = functions.https.onCall((data, context) => {
   admin
     .auth()
-    .getUser(data.uid)
-    .then(user => {
+    .createUser({
+      email: data.email,
+      password: data.password,
+      displayName: data.displayName,
+      disabled: false,
+    })
+    .then((user) => {
       return admin
         .auth()
         .setCustomUserClaims(user.uid, { authCode: '', admin: '' })
         .then(() => {
-          return admin
-            .firestore()
-            .collection('users')
-            .doc(user.uid)
-            .set({
-              displayName: user.displayName ? user.displayName : 'New User',
-              email: user.email,
-              authCode: '',
-              admin: false,
-              phoneNumber: '',
-              id: user.uid
-            });
+          return admin.firestore().collection('users').doc(user.uid).set({
+            id: user.uid,
+            displayName: user.displayName,
+            email: user.email,
+            admin: false,
+            phoneNumber: '',
+            authCode: '',
+          });
         });
     })
-    .catch(err => {
+    .catch((err) => {
+      console.log(err.message, err.stack);
+      return { error: err.message, stack: err.stack };
+    });
+});
+
+exports.updatePhoneNumber = functions.https.onCall((data, context) => {
+  admin.auth().updateUser(context.auth.uid, {
+    phoneNumber: data.phoneNumber,
+  });
+});
+
+exports.makeUserAdminOnSignin = functions.auth.user().onCreate(async (data) => {
+  admin
+    .auth()
+    .getUser(data.uid)
+    .then((user) => {
+      return admin.auth().setCustomUserClaims(user.uid, { admin: '12345' });
+    })
+    .catch((err) => {
       console.log(err.message, err.stack);
       return { error: err.message, stack: err.stack };
     });
@@ -40,17 +60,17 @@ exports.saveNewUserData = functions.auth.user().onCreate(async data => {
 exports.makeUserAdmin = functions.https.onCall((data, context) => {
   if (context.auth.token.admin === '') {
     return {
-      error: 'Request not authorized. You do not have the right access to fulfill this request.'
+      error: 'Request not authorized. You do not have the right access to fulfill this request.',
     };
   }
 
   admin
     .auth()
     .getUser(data.userId)
-    .then(user => {
+    .then((user) => {
       if (user.customClaims && user.customClaims.admin !== '') {
         return {
-          error: `Request not authorized. ${user.displayName} is already an admin for this or another county. If ${user.displayName} was a part of another county before this adn you wish to add them to yours, make sure they remove their old admin status before adding a new one.`
+          error: `Request not authorized. ${user.displayName} is already an admin for this or another county. If ${user.displayName} was a part of another county before this adn you wish to add them to yours, make sure they remove their old admin status before adding a new one.`,
         };
       }
       return admin
@@ -67,7 +87,7 @@ exports.makeUserAdmin = functions.https.onCall((data, context) => {
             });
         });
     })
-    .catch(err => {
+    .catch((err) => {
       console.log(err.message, err.stack);
       return { error: err.message, stack: err.stack };
     });
@@ -78,7 +98,7 @@ exports.updateUserAuthCode = functions.https.onCall((data, context) => {
   admin
     .auth()
     .getUser(context.auth.uid)
-    .then(user => {
+    .then((user) => {
       return admin
         .auth()
         .setCustomUserClaims(user.uid, { authCode: data.authCode, admin: adminToken })
@@ -93,7 +113,7 @@ exports.updateUserAuthCode = functions.https.onCall((data, context) => {
             });
         });
     })
-    .catch(err => {
+    .catch((err) => {
       console.log(err.message, err.stack);
       return { error: err.message, stack: err.stack };
     });
